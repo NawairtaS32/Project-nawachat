@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { AiOutlineLogout, AiOutlineMenu, AiOutlineSetting } from "react-icons/ai";
 import {useNavigate} from "react-router-dom"
 import moment from "moment";
+import {db} from "../firebaseService"
+import { collection, doc , getDocs, setDoc, onSnapshot } from "firebase/firestore"
 
 function ChatMenu(){
 
@@ -42,6 +44,27 @@ export default function Chat() {
     const [signedUser,setSignedUser] = useState(JSON.parse(localStorage.getItem("nawa_chat_user")))
     const [loading,setLoading] = useState(true)
 
+    // membaca data dari collection chat
+    const getChatCollection = async ()=>{
+        let arrayCol = []
+        let chatColRef = await collection(db, "chat")
+        let result = await getDocs(chatColRef)
+        result.forEach((e)=>{
+            arrayCol.push(e.data())
+        })
+        return arrayCol
+    }
+
+    // trigger ketika ada update di chat collection
+    const chatTrigger = ()=>{
+        let chatRef = collection(db, "chat")
+        onSnapshot(chatRef, (rec)=>{
+            getChatCollection().then(res =>{
+                setMessage(res)
+            })
+        })
+    }
+
     // toggle menu
     const toggleMenu = ()=>{
         setShowMenu(!showMenu)
@@ -53,8 +76,18 @@ export default function Chat() {
         if(!user){
             return window.location.href = "/"
         }
+
+        getChatCollection().then(res => {
+            setMessage(res)
+        })
+
         setLoading(false)
-    }, []);
+
+        // component did update
+        return ()=>{
+            chatTrigger()
+        }
+    }, [db]);
 
     // scroll to bottom
     const scrollToBottomMsg = ()=>{
@@ -71,12 +104,16 @@ export default function Chat() {
         }
         let user = JSON.parse(localStorage.getItem("nawa_chat_user")) 
         e.target.message.value=""
-        setMessage ([...message, {
-                id : Date.now(),
-                message : msg,
-                createdAt : Date.now(),
-                user : user
-        }])
+
+        let chatRef = doc(db, "chat", Date.now() + signedUser.username)
+        setDoc(chatRef, {
+            id : Date.now(),
+            message : msg,
+            createdAt : Date.now(),
+            user : user
+        }).then(res =>{
+            console.info(res)
+        })
 
         scrollToBottomMsg()
     }   
